@@ -38,20 +38,22 @@ jobs:
           chmod +x "$GRADLEW"
           echo "Found: $GRADLEW"
 
-      - name: Create Android Java/Kotlin compatibility fix
+      - name: Create JVM compatibility fix
         run: |
           cat > jvm-fix.gradle <<'EOF'
-          allprojects {
-              tasks.withType(JavaCompile).configureEach {
-                  sourceCompatibility = "17"
-                  targetCompatibility = "17"
-              }
+          gradle.projectsEvaluated {
+              allprojects {
+                  tasks.withType(JavaCompile).configureEach {
+                      sourceCompatibility = "1.8"
+                      targetCompatibility = "1.8"
+                  }
 
-              tasks.configureEach { task ->
-                  if (task.name.toLowerCase().contains("kotlin")) {
-                      try {
-                          task.kotlinOptions.jvmTarget = "17"
-                      } catch (Exception ignored) {
+                  tasks.configureEach { task ->
+                      if (task.name.toLowerCase().contains("kotlin")) {
+                          try {
+                              task.kotlinOptions.jvmTarget = "1.8"
+                          } catch (Exception ignored) {
+                          }
                       }
                   }
               }
