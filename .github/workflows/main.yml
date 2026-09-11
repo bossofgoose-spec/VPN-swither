@@ -22,23 +22,59 @@ jobs:
 
       - name: Extract project
         run: |
+          rm -rf project
           mkdir project
           unzip -q VPN_Swither_GitHub_Actions.zip -d project
 
       - name: Find Gradle project
         run: |
-          echo "Ищем gradlew..."
+          echo "Project files:"
+          find project -maxdepth 5 -type f | head -100
+
+          echo "Gradle wrapper:"
           find project -name gradlew -type f
+
+      - name: Fix Java and Kotlin JVM target
+        run: |
+          echo "Fixing JVM target..."
+
+          find project -name "build.gradle" -type f -exec sed -i \
+            's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' {} \;
+
+          find project -name "build.gradle" -type f -exec sed -i \
+            's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' {} \;
+
+          find project -name "build.gradle" -type f -exec sed -i \
+            's/jvmTarget *= *["'\'']1\.8["'\'']/jvmTarget = "17"/g' {} \;
+
+          echo "JVM target fixed."
 
       - name: Make gradlew executable
         run: |
-          chmod +x $(find project -name gradlew -type f | head -1)
+          GRADLEW=$(find project -name gradlew -type f | head -1)
+
+          if [ -z "$GRADLEW" ]; then
+            echo "ERROR: gradlew not found!"
+            exit 1
+          fi
+
+          chmod +x "$GRADLEW"
+          echo "Using: $GRADLEW"
 
       - name: Build APK
         run: |
           GRADLEW=$(find project -name gradlew -type f | head -1)
-          cd "$(dirname "$GRADLEW")"
+          PROJECT_DIR=$(dirname "$GRADLEW")
+
+          echo "Building from: $PROJECT_DIR"
+
+          cd "$PROJECT_DIR"
           ./gradlew assembleDebug --no-daemon
+
+      - name: Find APK
+        run: |
+          echo "Searching for APK..."
+          find project -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
