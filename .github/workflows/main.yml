@@ -26,68 +26,54 @@ jobs:
           mkdir project
           unzip -q VPN_Swither_GitHub_Actions.zip -d project
 
-      - name: Find project
-        run: |
-          echo "=== Project files ==="
-          find project -maxdepth 5 -type f | sort
-
-          echo "=== Gradle wrapper ==="
-          find project -name gradlew -type f
-
-      - name: Fix JVM target
-        run: |
-          echo "=== Fixing Java/Kotlin JVM settings ==="
-
-          find project -type f -name "*.gradle" -exec sed -i \
-            's/JavaVersion\.VERSION_1_8/JavaVersion.VERSION_17/g' {} +
-
-          find project -type f -name "*.gradle" -exec sed -i \
-            's/JavaVersion\.VERSION_8/JavaVersion.VERSION_17/g' {} +
-
-          find project -type f -name "*.gradle" -exec sed -i \
-            's/sourceCompatibility[[:space:]]*=[[:space:]]*1\.8/sourceCompatibility = 17/g' {} +
-
-          find project -type f -name "*.gradle" -exec sed -i \
-            's/targetCompatibility[[:space:]]*=[[:space:]]*1\.8/targetCompatibility = 17/g' {} +
-
-          find project -type f -name "*.gradle" -exec sed -i \
-            's/jvmTarget[[:space:]]*=[[:space:]]*["'\'']1\.8["'\'']/jvmTarget = "17"/g' {} +
-
-          find project -type f -name "*.gradle" -exec sed -i \
-            's/jvmTarget[[:space:]]*=[[:space:]]*["'\'']8["'\'']/jvmTarget = "17"/g' {} +
-
-          echo "=== Remaining Java 8 references ==="
-          grep -RIn "VERSION_1_8\|VERSION_8\|jvmTarget.*1.8\|sourceCompatibility.*1.8\|targetCompatibility.*1.8" project || true
-
-      - name: Make Gradle executable
+      - name: Find Gradle wrapper
         run: |
           GRADLEW=$(find project -name gradlew -type f | head -1)
 
           if [ -z "$GRADLEW" ]; then
-            echo "ERROR: gradlew was not found!"
+            echo "ERROR: gradlew not found"
             exit 1
           fi
 
           chmod +x "$GRADLEW"
-          echo "Gradle wrapper: $GRADLEW"
+          echo "Found: $GRADLEW"
+
+      - name: Create JVM compatibility fix
+        run: |
+          cat > jvm-fix.gradle <<'EOF'
+          allprojects {
+              tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
+                  options.release.set(17)
+              }
+
+              tasks.configureEach {
+                  if (name.toLowerCase().contains("kotlin")) {
+                      try {
+                          kotlinOptions.jvmTarget = "17"
+                      } catch (Exception ignored) {
+                      }
+                  }
+              }
+          }
+          EOF
 
       - name: Build APK
         run: |
           GRADLEW=$(find project -name gradlew -type f | head -1)
           PROJECT_DIR=$(dirname "$GRADLEW")
 
-          echo "Building project from:"
-          echo "$PROJECT_DIR"
-
           cd "$PROJECT_DIR"
+
+          ../../jvm-fix.gradle 2>/dev/null || true
 
           ./gradlew clean assembleDebug \
             --no-daemon \
-            --stacktrace
+            --stacktrace \
+            --init-script "$GITHUB_WORKSPACE/jvm-fix.gradle"
 
       - name: Find APK
         run: |
-          echo "=== APK files ==="
+          echo "=== APK ==="
           find project -type f -name "*.apk" -print
 
       - name: Upload APK
