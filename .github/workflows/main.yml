@@ -38,18 +38,19 @@ jobs:
           chmod +x "$GRADLEW"
           echo "Found: $GRADLEW"
 
-      - name: Create JVM compatibility fix
+      - name: Create Android Java/Kotlin compatibility fix
         run: |
           cat > jvm-fix.gradle <<'EOF'
           allprojects {
-              tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
-                  options.release.set(17)
+              tasks.withType(JavaCompile).configureEach {
+                  sourceCompatibility = "17"
+                  targetCompatibility = "17"
               }
 
-              tasks.configureEach {
-                  if (name.toLowerCase().contains("kotlin")) {
+              tasks.configureEach { task ->
+                  if (task.name.toLowerCase().contains("kotlin")) {
                       try {
-                          kotlinOptions.jvmTarget = "17"
+                          task.kotlinOptions.jvmTarget = "17"
                       } catch (Exception ignored) {
                       }
                   }
@@ -64,8 +65,6 @@ jobs:
 
           cd "$PROJECT_DIR"
 
-          ../../jvm-fix.gradle 2>/dev/null || true
-
           ./gradlew clean assembleDebug \
             --no-daemon \
             --stacktrace \
@@ -73,8 +72,8 @@ jobs:
 
       - name: Find APK
         run: |
-          echo "=== APK ==="
-          find project -type f -name "*.apk" -print
+          echo "=== APK FILES ==="
+          find "$GITHUB_WORKSPACE/project" -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
